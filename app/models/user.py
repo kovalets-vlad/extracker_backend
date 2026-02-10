@@ -1,7 +1,9 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
-from currency import Currency
-from transaction import Transaction
+
+if TYPE_CHECKING:
+    from .currency import Currency
+    from .transaction import Transaction
 
 class User(SQLModel, table=True):
     __tablename__ = "users"

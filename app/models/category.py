@@ -1,7 +1,9 @@
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
-from transaction import Transaction
+
+if TYPE_CHECKING:
+    from .transaction import Transaction
 
 class CategoryType(str, Enum):
     INCOME = "income"

@@ -1,12 +1,12 @@
-import os
+from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel, create_engine
-from typing import AsyncGenerator
+from sqlmodel import SQLModel
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/finance_db")
+from app.core.config import settings
+from app import models 
 
-engine = create_async_engine(DATABASE_URL, echo=True, future=True)
+engine = create_async_engine(settings.DATABASE_URL, echo=True, future=True)
 
 async_session_maker = sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False

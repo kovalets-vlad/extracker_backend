@@ -1,7 +1,9 @@
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
-from user import User
+
+if TYPE_CHECKING:
+    from .user import User
 
 class CurrencyCode(str, Enum):
     USD = "USD"
