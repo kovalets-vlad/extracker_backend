@@ -1,0 +1,28 @@
+from datetime import datetime
+from decimal import Decimal
+from sqlalchemy import Column, Numeric
+from typing import Optional
+from sqlmodel import SQLModel, Field, Relationship, Enum
+from user import User
+from category import Category
+
+class SourceType(str, Enum):
+    BANK = "bank"
+    MANUAL = "manual"
+    ML = "ml"
+
+class Transaction(SQLModel, table=True):
+    __tablename__ = "transactions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    
+    amount: Decimal = Field(sa_column=Column(Numeric(precision=12, scale=2), nullable=False))
+    description: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    source: SourceType = Field(default=SourceType.MANUAL, index=True)
+    
+    user_id: int = Field(foreign_key="users.id", index=True)
+    category_id: int = Field(foreign_key="categories.id", index=True)
+    
+    user: Optional["User"] = Relationship(back_populates="transactions")
+    category: Optional["Category"] = Relationship(back_populates="transactions")
