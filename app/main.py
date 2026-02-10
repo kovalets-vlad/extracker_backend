@@ -1,7 +1,9 @@
 from fastapi import FastAPI
+from core.db import init_db 
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
+
