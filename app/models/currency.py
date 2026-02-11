@@ -3,7 +3,7 @@ from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
-    from .user import User
+    from app.models.user import User
 
 class CurrencyCode(str, Enum):
     USD = "USD"

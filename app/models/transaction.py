@@ -6,8 +6,8 @@ from typing import Optional, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
-    from .user import User
-    from .category import Category
+    from app.models.user import User
+    from app.models.category import Category
 
 class SourceType(str, Enum):
     BANK = "bank"

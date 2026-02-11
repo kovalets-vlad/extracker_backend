@@ -3,7 +3,7 @@ from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
-    from .transaction import Transaction
+    from app.models.transaction import Transaction
 
 class CategoryType(str, Enum):
     INCOME = "income"

@@ -4,4 +4,4 @@ sqlmodel
 asyncpg
 pydantic-settings
 python-jose[cryptography]
-passlib[bcrypt]
+argon2-cffi
