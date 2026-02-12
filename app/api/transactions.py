@@ -1,16 +1,101 @@
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
+import httpx
+import httpx
 from sqlmodel import select
 from sqlalchemy import extract
 from sqlalchemy.orm import joinedload
 from typing import Optional
 from app.core.db import AsyncSession, get_session
+from app.core.config import settings
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.account import Account
-from app.schemas.transaction import TransactionCreate
+from app.models.category import Category
+from app.schemas.transaction import TransactionCreate, TransferCreate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+@router.get("/currency_exchange")
+async def currency_exchange(
+    from_currency: str,
+    to_currency: str,
+    amount: Decimal,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    api_url = settings.EXCHANGE_RATE_API_URL + from_currency.upper()
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(api_url)
+            response.raise_for_status() 
+        except httpx.HTTPError:
+            raise HTTPException(status_code=500, detail="Помилка зв'язку з API курсів")
+        
+        data = response.json()
+        if data["result"] != "success":
+            raise HTTPException(status_code=500, detail="Невдалий запит до API обміну валют")
+        
+        rates = data.get("conversion_rates", {})
+        rate = rates.get(to_currency.upper())
+        if not rate:
+            raise HTTPException(status_code=400, detail="Невідома цільова валюта")
+
+        converted_amount = amount * Decimal(rate)
+        return {"converted_amount": converted_amount, "rate": rate}
+
+@router.post("/transfer")
+async def create_transfer(
+    data: TransferCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    from_acc = await session.get(Account, data.from_account_id)
+    to_acc = await session.get(Account, data.to_account_id)
+
+    if not from_acc or from_acc.user_id != current_user.id or \
+       not to_acc or to_acc.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Один з гаманців не знайдено")
+    
+    received_amount = data.target_amount
+
+    if received_amount is None:
+        raise HTTPException(status_code=400, detail="target_amount обов'язковий для переказів без вказаної суми отримання")
+    
+    swt = select(Category).where(Category.name == "Переказ")
+    result = await session.execute(swt)
+    transfer_category = result.scalars().first()
+
+    if not transfer_category:
+        raise HTTPException(status_code=500, detail="Категорія 'Переказ' не знайдена. Зверніться до адміністратора.")
+
+    out_transaction = Transaction(
+        amount=-data.amount, 
+        description=data.description,
+        account_id=data.from_account_id,
+        user_id=current_user.id,
+        type=TransactionType.TRANSFER,
+        category_id=transfer_category.id
+    )
+
+    in_transaction = Transaction(
+        amount=data.amount, 
+        description=data.description,
+        account_id=data.to_account_id,
+        user_id=current_user.id,
+        type=TransactionType.TRANSFER,
+        category_id=transfer_category.id
+    )
+
+    from_acc.balance -= data.amount
+    to_acc.balance += data.amount
+
+    session.add_all([out_transaction, in_transaction, from_acc, to_acc])
+    await session.commit()
+
+    return {"status": "success", "message": "Переказ виконано"}
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_transaction(

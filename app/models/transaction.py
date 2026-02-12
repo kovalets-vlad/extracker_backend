@@ -18,6 +18,7 @@ class SourceType(str, Enum):
 class TransactionType(str, Enum):
     INCOME = "income"
     EXPENSE = "expense"
+    TRANSFER = "transfer"
 
 class Transaction(SQLModel, table=True):
     __tablename__ = "transactions"

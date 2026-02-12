@@ -11,3 +11,9 @@ class TransactionCreate(BaseModel):
     type: TransactionType = TransactionType.EXPENSE
     source: SourceType = SourceType.MANUAL
 
+class TransferCreate(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: Decimal 
+    target_amount: Optional[Decimal] = None
+    description: Optional[str] = "Внутрішній переказ"

@@ -13,6 +13,7 @@ class DefaultCategory(str, Enum):
     HEALTH = "Здоров'я"
     OTHER = "Інше"
     SALARY = "Зарплата/Стипендія"
+    TRANSFER = "Переказ"
 
 CATEGORY_DATA = {
     DefaultCategory.FOOD: {"name": "Продукти", "icon": "🛒"},
@@ -22,6 +23,7 @@ CATEGORY_DATA = {
     DefaultCategory.HEALTH: {"name": "Здоров'я", "icon": "💊"},
     DefaultCategory.OTHER: {"name": "Інше", "icon": "📦"},
     DefaultCategory.SALARY: {"name": "Зарплата/Стипендія", "icon": "💸"},
+    DefaultCategory.TRANSFER: {"name": "Переказ", "icon": "🔄"},
 }
 
 class Category(SQLModel, table=True):
