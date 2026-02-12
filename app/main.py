@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from app.core.db import init_db, seed_currencies 
+from app.core.db import init_db, seed_currencies, seed_categories, async_session_maker
 from app.api.auth import router as auth_router
-from app.core.db import async_session_maker, seed_currencies
-
+from app.api.transactions import router as transaction_router
+from app.api.accounts import router as accounts_router
 
 app = FastAPI()
 
@@ -11,5 +11,8 @@ async def on_startup():
     await init_db()
     async with async_session_maker() as session:
         await seed_currencies(session)
+        await seed_categories(session)
 
 app.include_router(auth_router)
+app.include_router(transaction_router)
+app.include_router(accounts_router)
