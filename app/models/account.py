@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 from decimal import Decimal
 from sqlalchemy import Column, Numeric
 from sqlmodel import SQLModel, Field, Relationship
@@ -6,6 +6,7 @@ from sqlmodel import SQLModel, Field, Relationship
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.currency import Currency
+    from app.models.transaction import Transaction
 
 class Account(SQLModel, table=True):
     __tablename__ = "accounts"
@@ -21,4 +22,8 @@ class Account(SQLModel, table=True):
     currency_id: int = Field(foreign_key="currencies.id", index=True)
 
     user: Optional["User"] = Relationship(back_populates="accounts")
-    currency: Optional["Currency"] = Relationship()
+    currency: Optional["Currency"] = Relationship(back_populates="accounts")
+    transactions: List["Transaction"] = Relationship(
+        back_populates="account", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"} 
+    )

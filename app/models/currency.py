@@ -4,6 +4,7 @@ from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.account import Account
 
 class CurrencyCode(str, Enum):
     USD = "USD"
@@ -27,6 +28,7 @@ class Currency(SQLModel, table=True):
     symbol: str
     
     users: List["User"] = Relationship(back_populates="currency")
+    accounts: List["Account"] = Relationship(back_populates="currency")
 
     @classmethod
     def create_default(cls, code: CurrencyCode):
