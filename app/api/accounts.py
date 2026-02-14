@@ -7,7 +7,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.account import Account
 from app.models.currency import Currency
-from app.schemas.account import AccountCreate, AccountReadWithCurrency
+from app.schemas.account import AccountCreate, AccountReadWithCurrency, AccountSetLimit
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -35,6 +35,25 @@ async def create_account(
     await session.refresh(new_account)
     
     return {"status": "success", "account": new_account}
+
+@router.post("/{account_id}/set_limit")
+async def set_monthly_limit(
+    account_id: int,
+    data: AccountSetLimit,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    account = await session.get(Account, account_id)
+    
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Гаманець не знайдено")
+    
+    account.monthly_limit = data.monthly_limit
+    session.add(account)
+    await session.commit()
+    await session.refresh(account)
+    
+    return {"status": "success", "account": account}
 
 @router.get("/", response_model=List[AccountReadWithCurrency])
 async def list_accounts(

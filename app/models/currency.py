@@ -11,19 +11,21 @@ class CurrencyCode(str, Enum):
     EUR = "EUR"
     UAH = "UAH"
     GBP = "GBP"
+    PLN = "PLN"
 
 CURRENCY_DATA = {
     CurrencyCode.USD: {"name": "US Dollar", "symbol": "$"},
     CurrencyCode.EUR: {"name": "Euro", "symbol": "€"},
     CurrencyCode.UAH: {"name": "Ukrainian Hryvnia", "symbol": "₴"},
     CurrencyCode.GBP: {"name": "British Pound", "symbol": "£"},
+    CurrencyCode.PLN: {"name": "Polish Zloty", "symbol": "zł"},
 }
 
 class Currency(SQLModel, table=True):
     __tablename__ = "currencies"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    code: CurrencyCode = Field(unique=True, index=True)
+    code: str = Field(index=True, unique=True)
     name: str 
     symbol: str
     

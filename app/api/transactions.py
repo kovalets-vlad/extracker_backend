@@ -1,13 +1,10 @@
-from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
-import httpx
-import httpx
 from sqlmodel import select
 from sqlalchemy import extract
 from sqlalchemy.orm import joinedload
 from typing import Optional
+from datetime import datetime
 from app.core.db import AsyncSession, get_session
-from app.core.config import settings
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.transaction import Transaction, TransactionType
@@ -16,35 +13,6 @@ from app.models.category import Category
 from app.schemas.transaction import TransactionCreate, TransferCreate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
-
-@router.get("/currency_exchange")
-async def currency_exchange(
-    from_currency: str,
-    to_currency: str,
-    amount: Decimal,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    api_url = settings.EXCHANGE_RATE_API_URL + from_currency.upper()
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(api_url)
-            response.raise_for_status() 
-        except httpx.HTTPError:
-            raise HTTPException(status_code=500, detail="Помилка зв'язку з API курсів")
-        
-        data = response.json()
-        if data["result"] != "success":
-            raise HTTPException(status_code=500, detail="Невдалий запит до API обміну валют")
-        
-        rates = data.get("conversion_rates", {})
-        rate = rates.get(to_currency.upper())
-        if not rate:
-            raise HTTPException(status_code=400, detail="Невідома цільова валюта")
-
-        converted_amount = amount * Decimal(rate)
-        return {"converted_amount": converted_amount, "rate": rate}
 
 @router.post("/transfer")
 async def create_transfer(
@@ -134,8 +102,10 @@ async def create_transaction(
 
 @router.get("/")
 async def list_transactions(
-    month: Optional[int] = None, 
-    year: Optional[int] = None,
+    month: Optional[int] = datetime.now().month, 
+    year: Optional[int] = datetime.now().year,
+    category_id: Optional[int] = None,
+    type: Optional[TransactionType] = None,
     offset: int = 0, 
     limit: int = 20, 
     session: AsyncSession = Depends(get_session),
@@ -153,6 +123,12 @@ async def list_transactions(
     
     if year is not None:
         stmt = stmt.where(extract('year', Transaction.created_at) == year)
+
+    if category_id is not None:
+        stmt = stmt.where(Transaction.category_id == category_id)
+
+    if type is not None:
+        stmt = stmt.where(Transaction.type == type)
 
     stmt = stmt.offset(offset).limit(limit)
     

@@ -20,6 +20,7 @@ class Account(SQLModel, table=True):
 
     user_id: int = Field(foreign_key="users.id", index=True)
     currency_id: int = Field(foreign_key="currencies.id", index=True)
+    monthly_limit: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(12, 2)))
 
     user: Optional["User"] = Relationship(back_populates="accounts")
     currency: Optional["Currency"] = Relationship(back_populates="accounts")

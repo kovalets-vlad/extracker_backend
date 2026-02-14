@@ -16,3 +16,9 @@ class AccountReadWithCurrency(BaseModel):
     class Config:
         from_attributes = True
 
+class AccountUpdate(BaseModel):
+    name: Optional[str] = None
+    currency_code_id: Optional[int] = None
+
+class AccountSetLimit(BaseModel):
+    monthly_limit: Optional[Decimal] = None
