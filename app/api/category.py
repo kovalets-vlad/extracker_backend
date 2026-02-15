@@ -14,23 +14,80 @@ async def create_category(
     session: AsyncSession = Depends(get_session),
     current_user = Depends(get_current_user)
 ):
-    existing_category = await session.execute(select(Category).where((Category.name == data.name) & (Category.user_id == current_user.id)))
+    stmt = select(Category).where(
+        (Category.name == data.name) & 
+        (Category.user_id == current_user.id)
+    )
+    existing_category = await session.execute(stmt)
     if existing_category.scalars().first():
         raise HTTPException(status_code=400, detail="Категорія з такою назвою вже існує")
 
+
     new_category = Category(name=data.name, user_id=current_user.id)
-    new_category_limit = UserCategory(user_id=current_user.id, category_id=new_category.id, monthly_limit=data.limit)
     session.add(new_category)
-    session.add(new_category_limit)
+    
+    await session.flush()
+
+    if data.limit is not None:
+        new_category_limit = UserCategory(
+            user_id=current_user.id, 
+            category_id=new_category.id, 
+            monthly_limit=data.limit
+        )
+        session.add(new_category_limit)
+
     await session.commit()
     await session.refresh(new_category)
     
     return {"status": "success", "category": new_category}
 
-@router.put("/{category_id}", status_code=status.HTTP_200_OK)
-async def update_category(
+@router.patch("/{category_id}", status_code=status.HTTP_200_OK)
+async def update_category_all_in_one(
     category_id: int,
-    data: CategoryUpdate,
+    data: CategoryUpdate, 
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+
+    category = await session.get(Category, category_id)
+    if not category or category.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Категорія не знайдена")
+
+    if data.name is not None:
+        category.name = data.name
+        session.add(category)
+
+    if data.limit is not None:
+        stmt = select(UserCategory).where(
+            (UserCategory.category_id == category_id) & 
+            (UserCategory.user_id == current_user.id)
+        )
+        res = await session.execute(stmt)
+        user_category_record = res.scalars().first()
+
+        if not user_category_record:
+            user_category_record = UserCategory(
+                user_id=current_user.id, 
+                category_id=category_id, 
+                monthly_limit=data.limit
+            )
+        else:
+            user_category_record.monthly_limit = data.limit
+        
+        session.add(user_category_record)
+
+    await session.commit()
+    await session.refresh(category)
+    
+    return {
+        "status": "success", 
+        "category_name": category.name,
+        "limit": data.limit if data.limit is not None else "не змінено"
+    }
+
+@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    category_id: int,
     session: AsyncSession = Depends(get_session),
     current_user = Depends(get_current_user)
 ):
@@ -38,16 +95,7 @@ async def update_category(
     if not category or category.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Категорія не знайдена")
 
-    category.name = data.name
-    user_category = await session.execute(select(UserCategory).where((UserCategory.category_id == category_id) & (UserCategory.user_id == current_user.id)))
-    user_category_record = user_category.scalars().first()
-    
-    if user_category_record:
-        user_category_record.monthly_limit = data.limit
-        session.add(user_category_record)
-
-    session.add(category)
+    await session.delete(category)
     await session.commit()
-    await session.refresh(category)
     
-    return {"status": "success", "category": category}
+    return {"status": "success", "message": "Категорія видалена"}

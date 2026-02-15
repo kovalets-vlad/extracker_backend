@@ -75,42 +75,49 @@ async def seed_categories(session: AsyncSession):
 
 async def sync_exchange_rates(session: AsyncSession):
     """Головна функція для оновлення курсів (використовується і для seed, і для auto)"""
-    api_url = f"{settings.EXCHANGE_RATE_API_URL}{MAIN_CURRENCY}"
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(api_url, timeout=10.0)
-            response.raise_for_status()
-        except httpx.HTTPError:
-            print("❌ Помилка зв'язку з API курсів")
-            return
 
-        data = response.json()
-        if data.get("result") != "success":
-            return
-
-        rates = data.get("conversion_rates", {})
+    try:
+        api_url = f"{settings.EXCHANGE_RATE_API_URL}{MAIN_CURRENCY}"
         
-        result = await session.execute(select(ExchangeRate))
-        existing_rates = {r.code: r for r in result.scalars().all()}
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(api_url, timeout=10.0)
+                response.raise_for_status()
+            except httpx.HTTPError:
+                print("❌ Помилка зв'язку з API курсів")
+                return
 
-        for code, rate in rates.items():
-            if code in CurrencyCode: 
-                rate_dec = Decimal(str(rate))
-                
-                if code in existing_rates:
-                    existing_rates[code].rate_to_usd = rate_dec
-                    existing_rates[code].updated_at = datetime.now(timezone.utc)
-                else:
-                    new_rate = ExchangeRate(
-                        code=code, 
-                        rate_to_usd=rate_dec,
-                        updated_at=datetime.now(timezone.utc) 
-                    )
-                    session.add(new_rate)
+            data = response.json()
+            if data.get("result") != "success":
+                return
 
-        await session.commit()
-        print(f"✅ Курси оновлені: {datetime.now(timezone.utc)}")
+            rates = data.get("conversion_rates", {})
+            
+            result = await session.execute(select(ExchangeRate))
+            existing_rates = {r.code: r for r in result.scalars().all()}
+
+            for code, rate in rates.items():
+                if code in CurrencyCode: 
+                    rate_dec = Decimal(str(rate))
+                    
+                    if code in existing_rates:
+                        existing_rates[code].rate_to_usd = rate_dec
+                        existing_rates[code].updated_at = datetime.now(timezone.utc)
+                    else:
+                        new_rate = ExchangeRate(
+                            code=code, 
+                            rate_to_usd=rate_dec,
+                            updated_at=datetime.now(timezone.utc) 
+                        )
+                        session.add(new_rate)
+
+            await session.commit()
+            print(f"✅ Курси оновлені: {datetime.now(timezone.utc)}")
+
+    except Exception as e:
+        await session.rollback()
+        print(f"❌ Критична помилка при синхронізації: {e}")
+        return
 
 async def auto_update_exchange_rates(session: AsyncSession):
     stmt = select(func.max(ExchangeRate.updated_at))

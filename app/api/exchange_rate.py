@@ -17,26 +17,21 @@ async def currency_exchange(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    currency_exchange = await session.execute(
-        select(ExchangeRate).where(ExchangeRate.code == from_currency.upper())
-    )
-    from_rate = currency_exchange.scalars().first()
-    if not from_rate:
-        raise HTTPException(status_code=400, detail="Невідома вихідна валюта")
+    stmt = select(ExchangeRate).where(ExchangeRate.code.in_([from_currency.upper(), to_currency.upper()]))
+    result = await session.execute(stmt)
+    rates = {r.code: r for r in result.scalars().all()}
 
-    currency_exchange = await session.execute(
-        select(ExchangeRate).where(ExchangeRate.code == to_currency.upper())
-    )
+    from_rate = rates.get(from_currency.upper())
+    to_rate = rates.get(to_currency.upper())
+
+    if not from_rate or not to_rate:
+        raise HTTPException(status_code=400, detail="Одну з валют не знайдено в системі")
 
     message = f""
-    if currency_exchange.updated_at == datetime.now(timezone.utc) - timedelta(days=1):
-        message = "⚠️ Курси застаріли, рекомендується оновити їх для точного конвертування."
+    if to_rate.updated_at < datetime.now(timezone.utc) - timedelta(days=1):
+        message = "⚠️ Курси застаріли, рекомендується вводити суму конвертації вручну."
     else:
         message = "✅ Курси актуальні."
 
-    to_rate = currency_exchange.scalars().first()
-    if not to_rate:
-        raise HTTPException(status_code=400, detail="Невідома цільова валюта")
-
     converted_amount = amount * (to_rate.rate_to_usd / from_rate.rate_to_usd)
-    return {"converted_amount": converted_amount, "rate": to_rate.rate_to_usd / from_rate.rate_to_usd, "message": message}
+    return {"converted_amount": converted_amount, "rate": to_rate.rate_to_usd / from_rate.rate_to_usd, "message": message, "last_updated": to_rate.updated_at}

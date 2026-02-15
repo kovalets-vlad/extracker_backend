@@ -3,7 +3,7 @@ from sqlmodel import select
 from sqlalchemy import extract
 from sqlalchemy.orm import joinedload
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.db import AsyncSession, get_session
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -30,14 +30,17 @@ async def create_transfer(
     received_amount = data.target_amount
 
     if received_amount is None:
-        raise HTTPException(status_code=400, detail="target_amount обов'язковий для переказів без вказаної суми отримання")
-    
+        if from_acc.currency_id == to_acc.currency_id:
+            received_amount = data.amount
+        else:
+            raise HTTPException(status_code=400, detail="Вкажіть суму отримання для конвертації")
+
     swt = select(Category).where(Category.name == "Переказ")
     result = await session.execute(swt)
     transfer_category = result.scalars().first()
 
     if not transfer_category:
-        raise HTTPException(status_code=500, detail="Категорія 'Переказ' не знайдена. Зверніться до адміністратора.")
+        raise HTTPException(status_code=500, detail="Категорія 'Переказ' не знайдена")
 
     out_transaction = Transaction(
         amount=-data.amount, 
@@ -49,7 +52,7 @@ async def create_transfer(
     )
 
     in_transaction = Transaction(
-        amount=data.amount, 
+        amount=received_amount, 
         description=data.description,
         account_id=data.to_account_id,
         user_id=current_user.id,
@@ -58,12 +61,12 @@ async def create_transfer(
     )
 
     from_acc.balance -= data.amount
-    to_acc.balance += data.amount
+    to_acc.balance += received_amount 
 
     session.add_all([out_transaction, in_transaction, from_acc, to_acc])
     await session.commit()
 
-    return {"status": "success", "message": "Переказ виконано"}
+    return {"status": "success", "message": "Переказ виконано", "received": received_amount}
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_transaction(
@@ -71,24 +74,26 @@ async def create_transaction(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    account_stmt = select(Account).where(
-        Account.id == data.account_id, 
-        Account.user_id == current_user.id
-    )
-    result = await session.execute(account_stmt)
-    account = result.scalars().first()
+    account = await session.get(Account, data.account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Гаманець не знайдено")
 
-    if not account:
-        raise HTTPException(status_code=404, detail="Гаманець не знайдено або він вам не належить")
+    category_stmt = select(Category).where(
+        Category.id == data.category_id,
+        (Category.user_id == current_user.id) | (Category.user_id == None)
+    )
+    category_res = await session.execute(category_stmt)
+    if not category_res.scalars().first():
+        raise HTTPException(status_code=400, detail="Категорія не знайдена")
 
     new_transaction = Transaction(
         **data.model_dump(),
         user_id=current_user.id
     )
 
-    if new_transaction.type == "expense":
+    if new_transaction.type == TransactionType.EXPENSE:
         account.balance -= data.amount
-    else:
+    elif new_transaction.type == TransactionType.INCOME:
         account.balance += data.amount
 
     session.add(new_transaction)
@@ -102,8 +107,8 @@ async def create_transaction(
 
 @router.get("/")
 async def list_transactions(
-    month: Optional[int] = datetime.now().month, 
-    year: Optional[int] = datetime.now().year,
+    month: Optional[int] = None, 
+    year: Optional[int] = None,
     category_id: Optional[int] = None,
     type: Optional[TransactionType] = None,
     offset: int = 0, 
@@ -111,6 +116,10 @@ async def list_transactions(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
+    now = datetime.now(timezone.utc)
+    target_month = month or now.month
+    target_year = year or now.year
+
     stmt = (
         select(Transaction)
         .where(Transaction.user_id == current_user.id)
@@ -118,11 +127,10 @@ async def list_transactions(
         .order_by(Transaction.created_at.desc())
     )
 
-    if month is not None:
-        stmt = stmt.where(extract('month', Transaction.created_at) == month)
-    
-    if year is not None:
-        stmt = stmt.where(extract('year', Transaction.created_at) == year)
+    stmt = stmt.where(
+        (extract('month', Transaction.created_at) == target_month) & 
+        (extract('year', Transaction.created_at) == target_year)
+    )
 
     if category_id is not None:
         stmt = stmt.where(Transaction.category_id == category_id)
@@ -135,14 +143,15 @@ async def list_transactions(
     result = await session.execute(stmt)
     transactions = result.scalars().all()
 
-    if len(transactions) < limit:
-        next_offset = None
-    else:
-        next_offset = offset + limit
+    next_offset = offset + limit if len(transactions) == limit else None
     
     return {
         "transactions": transactions,
-        "next_offset": next_offset
+        "next_offset": next_offset,
+        "filters": {
+            "month": target_month,
+            "year": target_year
+        }
     }
 
 @router.get("/{transaction_id}")
@@ -169,24 +178,23 @@ async def delete_transaction(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Transaction).where(
-        Transaction.id == transaction_id, 
-        Transaction.user_id == current_user.id
-    )
-    result = await session.execute(stmt)
-    transaction = result.scalars().first()
-
-    if not transaction:
+    # Шукаємо транзакцію
+    transaction = await session.get(Transaction, transaction_id)
+    if not transaction or transaction.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Транзакцію не знайдено")
 
+    # Синхронізуємо баланс
     account = await session.get(Account, transaction.account_id)
     if account:
-        account.balance -= transaction.amount 
+        if transaction.type == "expense":
+            account.balance += transaction.amount
+        else:
+            account.balance -= transaction.amount
         session.add(account)
 
     await session.delete(transaction)
-    await session.commit() 
-    
+    await session.commit()
+
 @router.put("/{transaction_id}")
 async def update_transaction(
     transaction_id: int,
@@ -194,37 +202,33 @@ async def update_transaction(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Transaction).where(
-        Transaction.id == transaction_id, 
-        Transaction.user_id == current_user.id
-    )
-    result = await session.execute(stmt)
-    transaction = result.scalars().first()
-
-    if not transaction:
+    transaction = await session.get(Transaction, transaction_id)
+    if not transaction or transaction.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Транзакцію не знайдено")
 
     old_account = await session.get(Account, transaction.account_id)
-    
-    if transaction.account_id != data.account_id:
-        new_account = await session.get(Account, data.account_id)
-        if not new_account or new_account.user_id != current_user.id:
-            raise HTTPException(status_code=400, detail="Новий гаманець не знайдено")
-        
-        old_account.balance -= transaction.amount
-        new_account.balance += data.amount
-        
+    if old_account:
+        if transaction.type == "expense":
+            old_account.balance += transaction.amount
+        else:
+            old_account.balance -= transaction.amount
         session.add(old_account)
-        session.add(new_account)
+
+    new_account = await session.get(Account, data.account_id)
+    if not new_account or new_account.user_id != current_user.id:
+        raise HTTPException(status_code=400, detail="Цільовий гаманець не знайдено")
+
+    if data.type == "expense":
+        new_account.balance -= data.amount
     else:
-        old_account.balance = old_account.balance - transaction.amount + data.amount
-        session.add(old_account)
+        new_account.balance += data.amount
+    session.add(new_account)
 
     for key, value in data.model_dump().items():
         setattr(transaction, key, value)
 
     session.add(transaction)
-    await session.commit() 
+    await session.commit()
     await session.refresh(transaction)
 
     return {"status": "success", "transaction": transaction}
