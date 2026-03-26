@@ -2,3 +2,6 @@ fastapi
 uvicorn[standard]
 sqlmodel
 asyncpg
+pydantic-settings
+python-jose[cryptography]
+argon2-cffi
