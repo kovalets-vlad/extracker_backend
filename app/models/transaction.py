@@ -28,9 +28,14 @@ class Transaction(SQLModel, table=True):
     amount: Decimal = Field(sa_column=Column(Numeric(precision=12, scale=2), nullable=False))
     description: Optional[str] = Field(default=None)
     
-    created_at: datetime = Field(
+    server_timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True), 
+        sa_type=DateTime(timezone=True)
+    )
+
+    transaction_date: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), #
+        sa_type=DateTime(timezone=True),
         index=True
     )
     

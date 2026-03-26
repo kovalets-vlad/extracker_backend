@@ -27,20 +27,13 @@ async def create_transfer(
        not to_acc or to_acc.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Один з гаманців не знайдено")
     
-    received_amount = data.target_amount
-
-    if received_amount is None:
-        if from_acc.currency_id == to_acc.currency_id:
-            received_amount = data.amount
-        else:
-            raise HTTPException(status_code=400, detail="Вкажіть суму отримання для конвертації")
+    received_amount = data.target_amount or data.amount
 
     swt = select(Category).where(Category.name == "Переказ")
     result = await session.execute(swt)
     transfer_category = result.scalars().first()
 
-    if not transfer_category:
-        raise HTTPException(status_code=500, detail="Категорія 'Переказ' не знайдена")
+    t_date = data.transaction_date or datetime.now(timezone.utc)
 
     out_transaction = Transaction(
         amount=-data.amount, 
@@ -48,7 +41,8 @@ async def create_transfer(
         account_id=data.from_account_id,
         user_id=current_user.id,
         type=TransactionType.TRANSFER,
-        category_id=transfer_category.id
+        category_id=transfer_category.id,
+        transaction_date=t_date 
     )
 
     in_transaction = Transaction(
@@ -57,7 +51,8 @@ async def create_transfer(
         account_id=data.to_account_id,
         user_id=current_user.id,
         type=TransactionType.TRANSFER,
-        category_id=transfer_category.id
+        category_id=transfer_category.id,
+        transaction_date=t_date 
     )
 
     from_acc.balance -= data.amount
@@ -65,8 +60,7 @@ async def create_transfer(
 
     session.add_all([out_transaction, in_transaction, from_acc, to_acc])
     await session.commit()
-
-    return {"status": "success", "message": "Переказ виконано", "received": received_amount}
+    return {"status": "success", "received": received_amount}
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_transaction(
@@ -124,34 +118,28 @@ async def list_transactions(
         select(Transaction)
         .where(Transaction.user_id == current_user.id)
         .options(joinedload(Transaction.category)) 
-        .order_by(Transaction.created_at.desc())
+        .order_by(Transaction.transaction_date.desc())
     )
 
     stmt = stmt.where(
-        (extract('month', Transaction.created_at) == target_month) & 
-        (extract('year', Transaction.created_at) == target_year)
+        (extract('month', Transaction.transaction_date) == target_month) & 
+        (extract('year', Transaction.transaction_date) == target_year)
     )
 
-    if category_id is not None:
-        stmt = stmt.where(Transaction.category_id == category_id)
-
-    if type is not None:
-        stmt = stmt.where(Transaction.type == type)
+    if category_id: stmt = stmt.where(Transaction.category_id == category_id)
+    if type: stmt = stmt.where(Transaction.type == type)
 
     stmt = stmt.offset(offset).limit(limit)
     
     result = await session.execute(stmt)
     transactions = result.scalars().all()
 
-    next_offset = offset + limit if len(transactions) == limit else None
+    result = await session.execute(stmt.offset(offset).limit(limit))
+    transactions = result.scalars().all()
     
     return {
         "transactions": transactions,
-        "next_offset": next_offset,
-        "filters": {
-            "month": target_month,
-            "year": target_year
-        }
+        "next_offset": offset + limit if len(transactions) == limit else None
     }
 
 @router.get("/{transaction_id}")
@@ -178,12 +166,10 @@ async def delete_transaction(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    # Шукаємо транзакцію
     transaction = await session.get(Transaction, transaction_id)
     if not transaction or transaction.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Транзакцію не знайдено")
 
-    # Синхронізуємо баланс
     account = await session.get(Account, transaction.account_id)
     if account:
         if transaction.type == "expense":

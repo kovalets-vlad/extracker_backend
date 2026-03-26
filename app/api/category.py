@@ -26,7 +26,7 @@ async def create_category(
     new_category = Category(name=data.name, user_id=current_user.id)
     session.add(new_category)
     
-    await session.flush()
+    await session.flush()   
 
     if data.limit is not None:
         new_category_limit = UserCategory(
