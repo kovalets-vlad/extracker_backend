@@ -123,36 +123,56 @@ class AnalyticsService:
                     totals[CategoryGroup.OTHER] += normalized_amount
 
         income = totals[CategoryGroup.INCOME]
-        def get_percent(amount: Decimal) -> float:
-            return float((amount / income * 100).quantize(Decimal("0.1"))) if income > 0 else 0.0
+        
+        total_expense = (
+            totals[CategoryGroup.ESSENTIAL] + 
+            totals[CategoryGroup.WANTS] + 
+            totals[CategoryGroup.SAVINGS] + 
+            totals[CategoryGroup.OTHER]
+        )
+
+        def get_percent_of_income(amount: Decimal) -> float:
+            if income == 0:
+                return 0.0
+            return float((amount / income * 100).quantize(Decimal("0.1")))
+
+        def get_percent_of_expense(amount: Decimal) -> float:
+            if total_expense == 0:
+                return 0.0
+            return float((amount / total_expense * 100).quantize(Decimal("0.1")))
 
         return {
             "period": f"{month:02d}/{year}",
             "base_currency": base_currency,
             "total_income": float(income),
+            "total_expense": float(total_expense), 
             "breakdown": {
                 "essential": {
                     "amount": float(totals[CategoryGroup.ESSENTIAL]),
-                    "percent": get_percent(totals[CategoryGroup.ESSENTIAL]),
-                    "target_percent": user.target_essential, 
-                    "status": "overbudget" if get_percent(totals[CategoryGroup.ESSENTIAL]) > user.target_essential else "ok"
+                    "percent_of_income": get_percent_of_income(totals[CategoryGroup.ESSENTIAL]),
+                    "percent_of_expense": get_percent_of_expense(totals[CategoryGroup.ESSENTIAL]),
+                    "target_percent": user.target_essential,
+                    "status": "overbudget" if get_percent_of_income(totals[CategoryGroup.ESSENTIAL]) > user.target_essential else "ok"
                 },
                 "wants": {
                     "amount": float(totals[CategoryGroup.WANTS]),
-                    "percent": get_percent(totals[CategoryGroup.WANTS]),
-                    "target_percent": user.target_wants, 
-                    "status": "overbudget" if get_percent(totals[CategoryGroup.WANTS]) > user.target_wants else "ok"
+                    "percent_of_income": get_percent_of_income(totals[CategoryGroup.WANTS]),
+                    "percent_of_expense": get_percent_of_expense(totals[CategoryGroup.WANTS]),
+                    "target_percent": user.target_wants,
+                    "status": "overbudget" if get_percent_of_income(totals[CategoryGroup.WANTS]) > user.target_wants else "ok"
                 },
                 "savings": {
                     "amount": float(totals[CategoryGroup.SAVINGS]),
-                    "percent": get_percent(totals[CategoryGroup.SAVINGS]),
-                    "target_percent": user.target_savings, 
-                    "status": "underfunded" if get_percent(totals[CategoryGroup.SAVINGS]) < user.target_savings else "ok"
+                    "percent_of_income": get_percent_of_income(totals[CategoryGroup.SAVINGS]),
+                    "percent_of_expense": get_percent_of_expense(totals[CategoryGroup.SAVINGS]),
+                    "target_percent": user.target_savings,
+                    "status": "underfunded" if get_percent_of_income(totals[CategoryGroup.SAVINGS]) < user.target_savings else "ok"
                 },
                 "other": {
                     "amount": float(totals[CategoryGroup.OTHER]),
-                    "percent": get_percent(totals[CategoryGroup.OTHER]),
-                    "target_percent": 0.0, 
+                    "percent_of_income": get_percent_of_income(totals[CategoryGroup.OTHER]),
+                    "percent_of_expense": get_percent_of_expense(totals[CategoryGroup.OTHER]),
+                    "target_percent": 0.0,
                     "status": "warning" if totals[CategoryGroup.OTHER] > 0 else "ok"
                 }
             }
