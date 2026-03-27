@@ -11,6 +11,7 @@ from app.api.accounts import router as accounts_router
 from app.api.exchange_rate import router as exchange_rate_router
 from app.api.analytics import router as analytics_router
 from app.api.category import router as category_router
+from app.api.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,3 +34,4 @@ app.include_router(accounts_router)
 app.include_router(exchange_rate_router)
 app.include_router(analytics_router)
 app.include_router(category_router)
+app.include_router(users_router)

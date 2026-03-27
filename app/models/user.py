@@ -14,6 +14,9 @@ class User(SQLModel, table=True):
     password_hash: str = Field(nullable=False)
     
     currency_id: Optional[int] = Field(default=None, foreign_key="currencies.id")
+    target_essential: float = Field(default=60.0)
+    target_wants: float = Field(default=20.0)
+    target_savings: float = Field(default=20.0)
     accounts: List["Account"] = Relationship(back_populates="user")
     
     currency: Optional["Currency"] = Relationship(back_populates="users")
