@@ -1,17 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select
+from sqlalchemy import func
 from typing import Optional
+from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.db import AsyncSession, get_session
 from app.api.deps import get_current_user
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.category import Category
 from app.models.user_category import UserCategory
+from app.models.user import User
+from app.services.analytics_service import AnalyticsService
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
-
-from sqlalchemy import func
-from datetime import datetime
 
 @router.get("/dashboard")
 async def get_dashboard_data(
@@ -89,3 +92,25 @@ async def get_categories_summary(
         })
 
     return summary
+
+@router.get("/budget")
+async def get_budget_analytics(
+    month: Optional[int] = Query(None, description="Місяць (1-12)"),
+    year: Optional[int] = Query(None, description="Рік (наприклад, 2026)"),
+    base_currency: str = Query("UAH", description="Валюта для зведення звіту"),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    now = datetime.now(timezone.utc)
+    target_month = month or now.month
+    target_year = year or now.year
+
+    report = await AnalyticsService.get_budget_with_trends(
+        session=session,
+        user=current_user,
+        month=target_month,
+        year=target_year,
+        base_currency=base_currency.upper()
+    )
+
+    return {"status": "success", "data": report}

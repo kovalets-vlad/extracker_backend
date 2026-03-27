@@ -3,7 +3,8 @@ from enum import Enum
 class CategoryGroup(str, Enum):
     ESSENTIAL = "essential" 
     WANTS = "wants"         
-    SAVINGS = "savings"     
+    SAVINGS = "savings" 
+    INCOME = "income"    
     OTHER = "other"
 
 class DefaultCategory(str, Enum):
@@ -24,6 +25,7 @@ class DefaultCategory(str, Enum):
     EDUCATION = "Курси/Книги"
     INVESTMENTS = "Інвестиції"
     SAVINGS_FILL = "Поповнення подушки"
+    GIFT = "Подарунки"
 
 CATEGORY_DATA = {
     DefaultCategory.FOOD: {"name": "Продукти", "icon": "🛒", "group": CategoryGroup.ESSENTIAL},
@@ -39,11 +41,13 @@ CATEGORY_DATA = {
     DefaultCategory.SHOPPING: {"name": "Покупки", "icon": "🛍️", "group": CategoryGroup.WANTS}, 
     DefaultCategory.SUBSCRIPTIONS: {"name": "Підписки", "icon": "📺", "group": CategoryGroup.WANTS},
     DefaultCategory.EDUCATION: {"name": "Курси/Книги", "icon": "📚", "group": CategoryGroup.WANTS}, 
+    DefaultCategory.GIFT: {"name": "Подарунки", "icon": "📚", "group": CategoryGroup.WANTS},
 
     DefaultCategory.INVESTMENTS: {"name": "Інвестиції", "icon": "📈", "group": CategoryGroup.SAVINGS},
     DefaultCategory.SAVINGS_FILL: {"name": "Поповнення подушки", "icon": "🛡️", "group": CategoryGroup.SAVINGS},
     
-    DefaultCategory.SALARY: {"name": "Зарплата/Стипендія", "icon": "💰", "group": CategoryGroup.OTHER},
+    DefaultCategory.SALARY: {"name": "Зарплата/Стипендія", "icon": "💰", "group": CategoryGroup.INCOME},
+
     DefaultCategory.TRANSFER: {"name": "Переказ", "icon": "🔄", "group": CategoryGroup.OTHER},
     DefaultCategory.OTHER: {"name": "Інше", "icon": "📦", "group": CategoryGroup.OTHER},
 }

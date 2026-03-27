@@ -3,13 +3,13 @@ from app.core.db import AsyncSession, get_session
 from app.api.deps import get_current_user
 from app.models.account import Account
 from app.models.recurring_transaction import RecurringTransaction
-from app.schemas.recurring_transaction import RecurringCreate
+from app.schemas.recurring_transaction import RecurringTransactionCreate
 
 router = APIRouter(prefix="/recurring_transactions", tags=["recurring_transactions"])
 
 @router.post("/")
 async def create_recurring_template(
-    data: RecurringCreate, 
+    data: RecurringTransactionCreate, 
     session: AsyncSession = Depends(get_session),
     current_user = Depends(get_current_user)
 ):
