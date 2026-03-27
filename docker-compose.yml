@@ -5,10 +5,7 @@ services:
         image: postgres:15-alpine
         container_name: extracker_db
         restart: always
-        environment:
-            - POSTGRES_USER=${DB_USER}
-            - POSTGRES_PASSWORD=${DB_PASSWORD}
-            - POSTGRES_DB=${DB_NAME}
+        env_file: .env
         ports:
             - "${DB_PORT}:5432"
         volumes:
@@ -31,11 +28,8 @@ services:
         volumes:
             - ./app:/code/app
         env_file: .env
-
         environment:
             - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
-            - SECRET_KEY=${SECRET_KEY}
-            - EXCHANGE_RATE_API_URL=${EXCHANGE_RATE_API_URL}
 
 volumes:
     postgres_data:

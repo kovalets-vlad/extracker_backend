@@ -31,8 +31,10 @@ async def sync_exchange_rates(session: AsyncSession):
             result = await session.execute(select(ExchangeRate))
             existing_rates = {r.code: r for r in result.scalars().all()}
 
+            allowed_codes = [c.value for c in CurrencyCode]
+
             for code, rate in rates.items():
-                if code in CurrencyCode: 
+                if code in allowed_codes:
                     rate_dec = Decimal(str(rate))
                     
                     if code in existing_rates:
