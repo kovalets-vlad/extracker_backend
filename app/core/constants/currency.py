@@ -1,11 +1,13 @@
 from enum import Enum
 
+
 class CurrencyCode(str, Enum):
     USD = "USD"
     EUR = "EUR"
     UAH = "UAH"
     GBP = "GBP"
     PLN = "PLN"
+
 
 CURRENCY_DATA = {
     CurrencyCode.USD: {"name": "US Dollar", "symbol": "$"},

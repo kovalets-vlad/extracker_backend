@@ -1,72 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
-from sqlmodel import select
-from sqlalchemy.orm import joinedload
-from app.core.db import AsyncSession, get_session
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user
+from app.core.db import get_session
 from app.models.user import User
-from app.models.account import Account
-from app.models.currency import Currency
-from app.schemas.account import AccountCreate, AccountReadWithCurrency, AccountSetLimit
+from app.schemas.account import (
+    AccountCreate,
+    AccountMutationResponse,
+    AccountReadWithCurrency,
+    AccountSetLimit,
+)
+from app.services.account_service import AccountService
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
-@router.post("/", response_model=Account)
+
+@router.post("/", response_model=AccountMutationResponse)
 async def create_account(
     data: AccountCreate,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    currency_result = await session.execute(
-        select(Currency).where(Currency.id == data.currency_code_id)
-    )
-    currency = currency_result.scalars().first()
-    if not currency:
-        raise HTTPException(status_code=400, detail="Невідома валюта")
-    
-    new_account = Account(
-        name=data.name,
-        currency_id=data.currency_code_id,
-        user_id=current_user.id
-    )
-    
-    session.add(new_account)
-    await session.commit()
-    await session.refresh(new_account)
-    
-    return {"status": "success", "account": new_account}
+    account = await AccountService.create_account(session, data, current_user)
+    return {"status": "success", "account": account}
 
-@router.post("/{account_id}/set_limit")
+
+@router.post("/{account_id}/set_limit", response_model=AccountMutationResponse)
 async def set_monthly_limit(
     account_id: int,
     data: AccountSetLimit,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    account = await session.get(Account, account_id)
-    
-    if not account or account.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Гаманець не знайдено")
-    
-    account.monthly_limit = data.monthly_limit
-    session.add(account)
-    await session.commit()
-    await session.refresh(account)
-    
+    account = await AccountService.set_monthly_limit(session, account_id, data, current_user)
     return {"status": "success", "account": account}
 
-@router.get("/", response_model=List[AccountReadWithCurrency])
+
+@router.get("/", response_model=list[AccountReadWithCurrency])
 async def list_accounts(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    stmt = (
-        select(Account)
-        .where(Account.user_id == current_user.id)
-        .options(joinedload(Account.currency))
-    )
-    
-    result = await session.execute(stmt)
-    accounts = result.scalars().all()
-    
-    return accounts
+    return await AccountService.list_accounts(session, current_user)

@@ -1,32 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.db import get_session
+
 from app.api.deps import get_current_user
+from app.core.db import get_session
 from app.models.user import User
-from app.schemas.user import UserSettingsUpdate
+from app.schemas.user import UserSettingsResponse, UserSettingsUpdate
+from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.put("/settings")
+
+@router.put("/settings", response_model=UserSettingsResponse)
 async def update_user_settings(
     settings: UserSettingsUpdate,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    current_user.target_essential = settings.target_essential
-    current_user.target_wants = settings.target_wants
-    current_user.target_savings = settings.target_savings
-
-    session.add(current_user)
-    await session.commit()
-    await session.refresh(current_user)
-
+    updated_user = await UserService.update_settings(session, settings, current_user)
     return {
         "status": "success",
         "message": "Налаштування бюджету успішно оновлено!",
         "settings": {
-            "essential": current_user.target_essential,
-            "wants": current_user.target_wants,
-            "savings": current_user.target_savings
-        }
+            "essential": updated_user.target_essential,
+            "wants": updated_user.target_wants,
+            "savings": updated_user.target_savings,
+        },
     }

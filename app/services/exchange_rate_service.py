@@ -1,76 +1,114 @@
-import httpx
+import logging
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from datetime import datetime, timezone, timedelta
-from sqlmodel import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exchange_rate import ExchangeRate
-from app.core.constants.currency import CurrencyCode
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import func, select
+
 from app.core.config import settings
+from app.core.constants.currency import CurrencyCode
+from app.core.exceptions import ValidationError
+from app.models.exchange_rate import ExchangeRate
+from app.repositories.exchange_rates import get_exchange_rates
+
+logger = logging.getLogger(__name__)
 
 MAIN_CURRENCY = "USD"
 
-async def sync_exchange_rates(session: AsyncSession):
+
+def _ensure_aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+async def sync_exchange_rates(session: AsyncSession) -> bool:
+    api_url = f"{settings.EXCHANGE_RATE_API_URL}{MAIN_CURRENCY}"
+
     try:
-        api_url = f"{settings.EXCHANGE_RATE_API_URL}{MAIN_CURRENCY}"
-        
         async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(api_url, timeout=10.0)
-                response.raise_for_status()
-            except httpx.HTTPError:
-                print("❌ Помилка зв'язку з API курсів")
-                return
+            response = await client.get(api_url, timeout=10.0)
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        logger.warning("Exchange rate API request failed: %s", exc)
+        return False
 
-            data = response.json()
-            if data.get("result") != "success":
-                return
+    data = response.json()
+    if data.get("result") != "success":
+        logger.warning("Exchange rate API returned non-success result")
+        return False
 
-            rates = data.get("conversion_rates", {})
-            
-            result = await session.execute(select(ExchangeRate))
-            existing_rates = {r.code: r for r in result.scalars().all()}
+    rates = data.get("conversion_rates", {})
+    result = await session.execute(select(ExchangeRate))
+    existing_rates = {rate.code: rate for rate in result.scalars().all()}
+    allowed_codes = {code.value for code in CurrencyCode}
+    now = datetime.now(timezone.utc)
 
-            allowed_codes = [c.value for c in CurrencyCode]
+    for code, rate in rates.items():
+        if code not in allowed_codes:
+            continue
 
-            for code, rate in rates.items():
-                if code in allowed_codes:
-                    rate_dec = Decimal(str(rate))
-                    
-                    if code in existing_rates:
-                        existing_rates[code].rate_to_usd = rate_dec
-                        existing_rates[code].updated_at = datetime.now(timezone.utc)
-                    else:
-                        new_rate = ExchangeRate(
-                            code=code, 
-                            rate_to_usd=rate_dec,
-                            updated_at=datetime.now(timezone.utc) 
-                        )
-                        session.add(new_rate)
+        rate_dec = Decimal(str(rate))
+        if code in existing_rates:
+            existing_rates[code].rate_to_usd = rate_dec
+            existing_rates[code].updated_at = now
+        else:
+            session.add(ExchangeRate(code=code, rate_to_usd=rate_dec, updated_at=now))
 
-            await session.commit()
-            print(f"✅ Курси оновлені: {datetime.now(timezone.utc)}")
+    await session.commit()
+    logger.info("Exchange rates synchronized at %s", now.isoformat())
+    return True
 
-    except Exception as e:
-        await session.rollback()
-        print(f"❌ Критична помилка при синхронізації: {e}")
-        return
 
-async def auto_update_exchange_rates(session: AsyncSession):
-    stmt = select(func.max(ExchangeRate.updated_at))
-    result = await session.execute(stmt)
+async def auto_update_exchange_rates(session: AsyncSession) -> None:
+    result = await session.execute(select(func.max(ExchangeRate.updated_at)))
     last_update = result.scalar()
+    stale_after = datetime.now(timezone.utc) - timedelta(days=1)
 
-    if not last_update or last_update < datetime.now(timezone.utc) - timedelta(days=1):
-        print("🔄 Курси застаріли, запускаю оновлення...")
+    if not last_update or _ensure_aware(last_update) < stale_after:
+        logger.info("Exchange rates are stale; starting synchronization")
         await sync_exchange_rates(session)
 
-    stmt = select(ExchangeRate)
-    result = await session.execute(stmt)
-    rates = result.scalars().all()
+    result = await session.execute(select(ExchangeRate.code))
+    existing_codes = set(result.scalars().all())
+    missing_codes = {rate.value for rate in CurrencyCode} - existing_codes
+    if missing_codes:
+        logger.info(
+            "Exchange rates missing for %s; starting synchronization", sorted(missing_codes)
+        )
+        await sync_exchange_rates(session)
 
-    for rate in CurrencyCode:
-        if rate.value not in [r.code for r in rates]:
-            print(f"⚠️ Відсутній курс для {rate.value}, запускаю оновлення...")
-            await sync_exchange_rates(session)
-            break
+
+class ExchangeRateService:
+    @staticmethod
+    async def convert_currency(
+        session: AsyncSession,
+        from_currency: str,
+        to_currency: str,
+        amount: Decimal,
+    ) -> dict[str, object]:
+        from_code = from_currency.upper()
+        to_code = to_currency.upper()
+        rates = await get_exchange_rates(session, {from_code, to_code})
+
+        from_rate = rates.get(from_code)
+        to_rate = rates.get(to_code)
+        if not from_rate or not to_rate:
+            raise ValidationError("Одну з валют не знайдено в системі")
+
+        stale_after = datetime.now(timezone.utc) - timedelta(days=1)
+        updated_at = _ensure_aware(to_rate.updated_at)
+        message = (
+            "⚠️ Курси застарілі, рекомендується перевірити суму конвертації вручну."
+            if updated_at < stale_after
+            else "✅ Курси актуальні."
+        )
+
+        rate = to_rate.rate_to_usd / from_rate.rate_to_usd
+        return {
+            "converted_amount": amount * rate,
+            "rate": rate,
+            "message": message,
+            "last_updated": to_rate.updated_at,
+        }

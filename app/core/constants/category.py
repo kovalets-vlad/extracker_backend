@@ -1,11 +1,13 @@
 from enum import Enum
 
+
 class CategoryGroup(str, Enum):
-    ESSENTIAL = "essential" 
-    WANTS = "wants"         
-    SAVINGS = "savings" 
-    INCOME = "income"    
+    ESSENTIAL = "essential"
+    WANTS = "wants"
+    SAVINGS = "savings"
+    INCOME = "income"
     OTHER = "other"
+
 
 class DefaultCategory(str, Enum):
     FOOD = "Продукти"
@@ -27,27 +29,56 @@ class DefaultCategory(str, Enum):
     SAVINGS_FILL = "Поповнення подушки"
     GIFT = "Подарунки"
 
+
 CATEGORY_DATA = {
     DefaultCategory.FOOD: {"name": "Продукти", "icon": "🛒", "group": CategoryGroup.ESSENTIAL},
-    DefaultCategory.TRANSPORT: {"name": "Транспорт", "icon": "🚌", "group": CategoryGroup.ESSENTIAL},
+    DefaultCategory.TRANSPORT: {
+        "name": "Транспорт",
+        "icon": "🚌",
+        "group": CategoryGroup.ESSENTIAL,
+    },
     DefaultCategory.HOUSING: {"name": "Житло", "icon": "🏠", "group": CategoryGroup.ESSENTIAL},
     DefaultCategory.HEALTH: {"name": "Здоров'я", "icon": "💊", "group": CategoryGroup.ESSENTIAL},
-    DefaultCategory.UTILITIES: {"name": "Комуналка", "icon": "⚡", "group": CategoryGroup.ESSENTIAL},
-    DefaultCategory.COMMUNICATION: {"name": "Зв'язок та інтернет", "icon": "📱", "group": CategoryGroup.ESSENTIAL},
-    DefaultCategory.CAR_MAINTENANCE: {"name": "Авто", "icon": "🚗", "group": CategoryGroup.ESSENTIAL}, 
-
-    DefaultCategory.ENTERTAINMENT: {"name": "Розваги", "icon": "🎮", "group": CategoryGroup.WANTS}, 
-    DefaultCategory.CAFES: {"name": "Кафе та ресторани", "icon": "☕", "group": CategoryGroup.WANTS},
-    DefaultCategory.SHOPPING: {"name": "Покупки", "icon": "🛍️", "group": CategoryGroup.WANTS}, 
+    DefaultCategory.UTILITIES: {
+        "name": "Комуналка",
+        "icon": "⚡",
+        "group": CategoryGroup.ESSENTIAL,
+    },
+    DefaultCategory.COMMUNICATION: {
+        "name": "Зв'язок та інтернет",
+        "icon": "📱",
+        "group": CategoryGroup.ESSENTIAL,
+    },
+    DefaultCategory.CAR_MAINTENANCE: {
+        "name": "Авто",
+        "icon": "🚗",
+        "group": CategoryGroup.ESSENTIAL,
+    },
+    DefaultCategory.ENTERTAINMENT: {"name": "Розваги", "icon": "🎮", "group": CategoryGroup.WANTS},
+    DefaultCategory.CAFES: {
+        "name": "Кафе та ресторани",
+        "icon": "☕",
+        "group": CategoryGroup.WANTS,
+    },
+    DefaultCategory.SHOPPING: {"name": "Покупки", "icon": "🛍️", "group": CategoryGroup.WANTS},
     DefaultCategory.SUBSCRIPTIONS: {"name": "Підписки", "icon": "📺", "group": CategoryGroup.WANTS},
-    DefaultCategory.EDUCATION: {"name": "Курси/Книги", "icon": "📚", "group": CategoryGroup.WANTS}, 
+    DefaultCategory.EDUCATION: {"name": "Курси/Книги", "icon": "📚", "group": CategoryGroup.WANTS},
     DefaultCategory.GIFT: {"name": "Подарунки", "icon": "📚", "group": CategoryGroup.WANTS},
-
-    DefaultCategory.INVESTMENTS: {"name": "Інвестиції", "icon": "📈", "group": CategoryGroup.SAVINGS},
-    DefaultCategory.SAVINGS_FILL: {"name": "Поповнення подушки", "icon": "🛡️", "group": CategoryGroup.SAVINGS},
-    
-    DefaultCategory.SALARY: {"name": "Зарплата/Стипендія", "icon": "💰", "group": CategoryGroup.INCOME},
-
+    DefaultCategory.INVESTMENTS: {
+        "name": "Інвестиції",
+        "icon": "📈",
+        "group": CategoryGroup.SAVINGS,
+    },
+    DefaultCategory.SAVINGS_FILL: {
+        "name": "Поповнення подушки",
+        "icon": "🛡️",
+        "group": CategoryGroup.SAVINGS,
+    },
+    DefaultCategory.SALARY: {
+        "name": "Зарплата/Стипендія",
+        "icon": "💰",
+        "group": CategoryGroup.INCOME,
+    },
     DefaultCategory.TRANSFER: {"name": "Переказ", "icon": "🔄", "group": CategoryGroup.OTHER},
     DefaultCategory.OTHER: {"name": "Інше", "icon": "📦", "group": CategoryGroup.OTHER},
 }

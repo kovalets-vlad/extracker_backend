@@ -1,8 +1,12 @@
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+
 from sqlalchemy import Column, Numeric
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
+
+from app.models.transaction import TransactionType
+
 
 class RecurringTransaction(SQLModel, table=True):
     __tablename__ = "recurring_transactions"
@@ -11,14 +15,14 @@ class RecurringTransaction(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True)
     account_id: int = Field(foreign_key="accounts.id")
     category_id: int = Field(foreign_key="categories.id")
-    
-    amount: Decimal = Field(sa_column=Column(Numeric(12, 2)))
+
+    amount: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
     description: Optional[str] = Field(default=None)
-    type: str 
-    
-    interval_days: int = Field(default=30) 
+    type: TransactionType
+
+    interval_days: int = Field(default=30)
     start_date: date = Field(default_factory=date.today)
     last_executed_at: Optional[date] = Field(default=None)
     is_calendar_monthly: bool = Field(default=False)
-    
+
     is_active: bool = Field(default=True)

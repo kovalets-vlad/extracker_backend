@@ -1,7 +1,9 @@
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
+
 from sqlalchemy import Column, Numeric, UniqueConstraint
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Field, SQLModel
+
 
 class UserCategory(SQLModel, table=True):
     __tablename__ = "user_categories"
@@ -10,12 +12,9 @@ class UserCategory(SQLModel, table=True):
 
     user_id: int = Field(foreign_key="users.id", index=True)
     category_id: int = Field(foreign_key="categories.id", index=True)
-    
+
     monthly_limit: Optional[Decimal] = Field(
-        default=None, 
-        sa_column=Column(Numeric(precision=12, scale=2))
+        default=None, sa_column=Column(Numeric(precision=12, scale=2))
     )
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "category_id", name="unique_user_category"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "category_id", name="unique_user_category"),)

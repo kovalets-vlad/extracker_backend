@@ -1,0 +1,8 @@
+-r requirements.txt
+
+alembic
+aiosqlite
+mypy
+pytest
+pytest-asyncio
+ruff

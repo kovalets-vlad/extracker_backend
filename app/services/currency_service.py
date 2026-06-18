@@ -1,11 +1,17 @@
-from sqlmodel import select
-from app.models.currency import Currency
-from app.core.constants.currency import CurrencyCode, CURRENCY_DATA
-from app.core.db import AsyncSession
+import logging
 
-async def seed_currencies(session: AsyncSession):
-    print("🪙 Початок ініціалізації валют...")
-    
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+
+from app.core.constants.currency import CURRENCY_DATA, CurrencyCode
+from app.models.currency import Currency
+
+logger = logging.getLogger(__name__)
+
+
+async def seed_currencies(session: AsyncSession) -> None:
+    logger.info("Starting currency seed")
+
     result = await session.execute(select(Currency.code))
     existing_codes = set(result.scalars().all())
 
@@ -13,16 +19,17 @@ async def seed_currencies(session: AsyncSession):
     for code in CurrencyCode:
         if code not in existing_codes:
             data = CURRENCY_DATA[code]
-            new_currency = Currency(
-                code=code,
-                name=data["name"],
-                symbol=data["symbol"]
+            currencies_to_add.append(
+                Currency(
+                    code=code,
+                    name=data["name"],
+                    symbol=data["symbol"],
+                )
             )
-            currencies_to_add.append(new_currency)
 
     if currencies_to_add:
         session.add_all(currencies_to_add)
         await session.commit()
-        print(f"✅ Додано нових валют: {len(currencies_to_add)}")
+        logger.info("Added %s currencies", len(currencies_to_add))
     else:
-        print("ℹ️ Всі валюти вже існують.")
+        logger.info("Currencies already seeded")

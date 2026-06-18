@@ -6,7 +6,7 @@ asyncpg
 
 pydantic-settings
 email-validator
-pydantic
+pydantic>=2.9,<2.12
 
 python-jose[cryptography]
 argon2-cffi
